@@ -1,3 +1,1 @@
-# da_sandbox
-# da_sandbox
-# da_sandbox
+A data assimilation sanbox. Contains an implementation of the shallow water model used as truth and an imperfect model used as NWP-system. Aslo data assimilation algorithms are included. 
