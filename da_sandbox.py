@@ -284,15 +284,12 @@ class Observation:
             obs.append((self.truth.get_value(t, x, y, self.var[i]) + np.random.normal(0, self.noise)).astype(np.float32))
         return np.array(obs), self.coordinates, self.var
     
-    def get_R(self):
-        return np.eye(self.n_obs) * self.noise**2 * 100
-    
 
 class EnKF:
-    def __init__(self, model, obs):
+    def __init__(self, model, obs, sigma_obs=0.01):
         self.model = model
         self.obs = obs
-        self.R = obs.get_R()
+        self.R = np.eye(obs.n_obs) * sigma_obs**2
         self.H = model.get_H(obs)
         self.n_obs = self.obs.n_obs
         self.nx = self.model.nx
@@ -330,7 +327,37 @@ class EnKF:
         self.model.state = analysis
         self.model.history = np.concatenate([self.model.history, analysis.reshape((1, self.ens_size, self.nx, self.ny, 3))], axis=0)
         self.model.time = np.hstack([self.model.time, self.model.time[-1]])
+
+
+class LETKF():
+    def __init__(self, model, obs, sigma_obs=0.01):
+        self.model = model
+        self.obs = obs
+        self.R = np.eye(obs.n_obs) * sigma_obs**2
+        self.H = model.get_H(obs)
+        self.n_obs = self.obs.n_obs
+        self.nx = self.model.nx
+        self.ny = self.model.ny
+        self.ens_size = self.model.ens_size
+
+    def compute_model_equivalents(self):
+        # compute the model equivalents of the observations
+        # H x_f
+        H = self.H
+        Hx = H @ self.model.state.reshape((self.ens_size, self.nx * self.ny * 3)).T
+        self.Hx = Hx.T
+        return self.Hx
         
+    def compute_P_tilde(self):
+        # compute the P_tile matrix
+        # P_tile = (N-1)^-1 (H B H^T + R)^-1
+        B = self.model.get_B()
+        H = self.H
+        R = self.R
+        N = self.ens_size
+        P_tilde = np.linalg.pinv(H @ B @ H.T + R) / (N - 1)
+        self.P_tilde = P_tilde
+        return self.P_tilde
 
 
 #%%
