@@ -417,10 +417,10 @@ class var3D():
         
     def analysis(self):
         J = self.cost_function()
-        print('cost before: {:}'.format(J(self.model.state[0].flatten())))
+        print('cost before: {:.2f}'.format(J(self.model.state[0].flatten())))
         analysis = sp.optimize.minimize(J, self.model.state[0].flatten())
         self.model.state[0] = np.reshape(analysis.x, (self.nx, self.ny, 3))
-        print('cost after: {:}'.format(J(self.model.state[0].flatten())))
+        print('cost after: {:.2f}'.format(J(self.model.state[0].flatten())))
         self.model.history = np.concatenate([self.model.history, self.model.state.reshape((1, self.ens_size, self.nx, self.ny, 3))], axis=0)
         self.model.times = np.hstack([self.model.times, self.model.time])
 
@@ -445,7 +445,7 @@ assimilation = var3D(model, obs, sigma_obs=0.01)
 #model.blank_start()
 model.initiate(truth, time=0, epsilon=0.0)
 
-cycle(model, assimilation, 0, 50, 10, show=False)
+cycle(model, assimilation, 0, 50, 10, show=True)
 #model.run_until(100, show=True)
 
 model.plot_spaghetti_timeline(25, 50, 'h')
