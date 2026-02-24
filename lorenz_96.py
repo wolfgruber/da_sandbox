@@ -15,6 +15,8 @@ def EnKF(x_ens, obs, B, H, sigma_obs=0.01):
     H = H
     Hx = H @ background.T
     departure = obs + obs_noise - Hx.T
+    #print("Background: {}".format(background))
+    #print("Departure: {}".format(departure))
     
     # compute the kalman gain K
     # K = B H^T (H B H^T + R)^-1
@@ -24,11 +26,14 @@ def EnKF(x_ens, obs, B, H, sigma_obs=0.01):
     # x_a = x_f + K (y_o - H x_f)
     # with K = B H^T (H B H^T + R)^-1
     analysis = background + (K @ departure.T).T
+    #print("Increment: {}".format(analysis-background))
+    #print("Analysis: {}".format(analysis))
+
     return analysis
 
 # %%
 # These are our constants
-n_x = 10  # Number of variables
+n_x = 50  # Number of variables
 F = 8  # Forcing
 n_ens = 20
 dt = 0.01
@@ -47,14 +52,17 @@ def init(n_x, F):
     x_t_0 = rng.normal(0, F*0.6, size=n_x) # Initial state
     x_ens_0 = x_t_0[np.newaxis,:] + rng.normal(0, F*0.06, size=(n_ens, n_x)) # Initial state
 
-    t_true = np.arange(0.0, 1+dt, dt/2)
+    t_true = np.arange(0.0, 1+dt/2, dt)
     t_coarse = np.arange(0.0, 1+dt_coarse/2, dt_coarse)
 
     x_t = odeint(L96, x_t_0, t_true)
+    #x_t = np.concatenate([np.reshape(x_t_0, (1,n_x)), x_t], axis=0)
 
     x_ens = np.empty((n_ens, len(t_coarse), n_x))
     for ens in range(n_ens):
         x_ens[ens,:,:] = odeint(L96, x_ens_0[ens,:], t_coarse)
+    #x_ens = np.concatenate([np.reshape(x_ens_0, (n_ens,1,n_x)),
+    #                        x_ens], axis=1)
 
     return t_true, x_t, t_coarse, x_ens
 
@@ -73,8 +81,8 @@ def integrate_by(x_t, x_ens, time):
     x_ens = np.concatenate([x_ens, x_ens_new[:,1:,:]], axis=1)
 
     # generate full t
-    t_true = np.arange(dt, (x_t.shape[0]+0.5)*dt, dt)
-    t_coarse = np.arange(dt_coarse, (x_ens.shape[1]+0.5)*dt_coarse, dt_coarse)
+    t_true = np.linspace(0, x_t.shape[0]*dt, x_t.shape[0])
+    t_coarse = np.linspace(0, x_ens.shape[1]*dt_coarse, x_ens.shape[1])
 
     return t_true, x_t, t_coarse, x_ens
 
@@ -108,19 +116,19 @@ def plot_spaghetti(t_true, x_t, t_coarse, x_ens, n=1):
     plt.ylabel("X{:02d}".format(n))
     plt.show()
 
-
+# run it
 t_true, x_t, t_coarse, x_ens = init(n_x=n_x, F=F)
-t_true, x_t, t_coarse, x_ens = integrate_by(x_t, x_ens, time=1)
+#t_true, x_t, t_coarse, x_ens = integrate_by(x_t, x_ens, time=1)
 
-for i in range(9):
+for i in range(10):
     obs_loc = np.arange(0, n_x, 10).astype(int)
     obs = make_observations(x_t, obs_loc, true_obs_err=0)
     B = copute_ens_covar(x_ens)
     H = np.zeros((len(obs), n_x))
     for obl in range(len(obs)):
         H[obl,obs_loc[obl]] = 1
-    analysis = EnKF(x_ens=x_ens, obs=obs, B=B, H=H, sigma_obs=0.0001)
-    x_ens[:,-1,:] = analysis
+    #analysis = EnKF(x_ens=x_ens, obs=obs, B=B, H=H, sigma_obs=0.0001)
+    #x_ens[:,-1,:] = analysis
 
     t_true, x_t, t_coarse, x_ens = integrate_by(x_t, x_ens, time=1)
 
