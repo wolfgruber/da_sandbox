@@ -33,10 +33,10 @@ def EnKF(x_ens, obs, B, H, sigma_obs=0.01):
 
 # %%
 # These are our constants
-n_x = 50  # Number of variables
+n_x = 20  # Number of variables
 F = 8  # Forcing
-n_ens = 20
-dt = 0.01
+n_ens = 80
+dt = 0.001
 dt_fraction = 10
 dt_coarse = dt * dt_fraction
 
@@ -97,12 +97,18 @@ def model_equivalent(x_ens, loc):
 
 
 def copute_ens_covar(x_ens):
-        error = x_ens[:,-1,:] - np.mean(x_ens, axis=1)
+        error = x_ens[:,-1,:] - np.mean(x_ens[:,-1,:], axis=0)
         B = error.T @ error / (n_ens - 1)
         return B
 
+def verify(x_t, x_ens, n=0):
+    rmse_mean = np.sqrt(np.mean(x_t[::dt_fraction]-np.mean(x_ens, axis=0), axis=1)**2)
+    rmse_median = np.sqrt(np.mean(x_t[::dt_fraction]-np.median(x_ens, axis=0), axis=1)**2)
+    rmse_mem = np.sqrt(np.mean(x_t[::dt_fraction]-x_ens[n,:,:], axis=1)**2)
+    return rmse_mean, rmse_median, rmse_mem
 
-def plot_spaghetti(t_true, x_t, t_coarse, x_ens, n=1):
+
+def plot_spaghetti(t_true, x_t, t_coarse, x_ens, n=0):
     for ens in range(n_ens):
         plt.plot(t_coarse, x_ens[ens,:,n],
                  color="black", linewidth=0.1)
@@ -120,27 +126,56 @@ def plot_spaghetti(t_true, x_t, t_coarse, x_ens, n=1):
 t_true, x_t, t_coarse, x_ens = init(n_x=n_x, F=F)
 #t_true, x_t, t_coarse, x_ens = integrate_by(x_t, x_ens, time=1)
 
-for i in range(10):
-    obs_loc = np.arange(0, n_x, 10).astype(int)
-    obs = make_observations(x_t, obs_loc, true_obs_err=0)
+for i in range(5):
+    obs_loc = np.arange(0, n_x, 2).astype(int)
+    obs = make_observations(x_t, obs_loc)
     B = copute_ens_covar(x_ens)
     H = np.zeros((len(obs), n_x))
     for obl in range(len(obs)):
         H[obl,obs_loc[obl]] = 1
-    #analysis = EnKF(x_ens=x_ens, obs=obs, B=B, H=H, sigma_obs=0.0001)
-    #x_ens[:,-1,:] = analysis
+    analysis = EnKF(x_ens=x_ens, obs=obs, B=B, H=H, sigma_obs=0.5)
+    x_ens[:,-1,:] = analysis
 
-    t_true, x_t, t_coarse, x_ens = integrate_by(x_t, x_ens, time=1)
+    t_true, x_t, t_coarse, x_ens = integrate_by(x_t, x_ens, time=2)
 
 plot_spaghetti(t_true, x_t, t_coarse, x_ens)
 
+# %%
+# plot spread
+#plt.plot(t_coarse, np.std(x_ens[:,:,0], axis=0))
+rmse_mean, rmse_median, rmse_mem = verify(x_t, x_ens)
+plt.plot(t_coarse, rmse_mean)
+plt.plot(t_coarse, rmse_median)
+#plt.plot(t_coarse, rmse_mem)
 # %%
 B = copute_ens_covar(x_ens)
 vx = max(-np.min(B), np.max(B))
 plt.pcolormesh(B, vmin=-vx, vmax=vx, cmap="coolwarm")
 plt.colorbar()
+plt.show()
+Bp = np.empty_like(B)
+for i in range(n_x):
+    Bp[i,:] = np.roll(B[i,:], -i)
+mean_Bp = np.mean(Bp, axis=0)
+plt.plot(mean_Bp)
+plt.plot(np.std(Bp, axis=0))
+plt.show()
+for i in range(n_x):
+    Bp[i,:] = np.roll(mean_Bp, i)
+plt.pcolormesh(Bp, vmin=-vx, vmax=vx, cmap="coolwarm")
+plt.colorbar()
+plt.show()
+
+
 # %%
-plt.plot(t2, np.abs(x[::10,1]-x2[:, 1])/F)
+vx = max(-np.min(x_t), np.max(x_t))
+plt.pcolormesh(x_t, vmin=-vx, vmax=vx)
 # %%
-plt.pcolormesh(x)
+plt.pcolormesh(np.mean(x_ens, axis=0), vmin=-vx, vmax=vx)
+# %%
+plt.pcolormesh(x_ens[0,:,:], vmin=-vx, vmax=vx)
+# %%
+# compare ens with valid time shifted ens
+plt.hist([x_ens[:,-1,0], x_ens[0,-n_ens:,0], x_ens[0,-1,:]], bins=np.arange(-F, F, 1),
+         density=True, histtype="step")
 # %%
